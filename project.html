@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>🦐 Shrimp Digital Twin System</title>
+
+  <style>
+    body {
+      font-family: Arial;
+      background: linear-gradient(to right, #dbeafe, #ffffff);
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 650px;
+      margin-top: 20px;
+    }
+
+    h1 { text-align: center; }
+
+    .card {
+      background: white;
+      padding: 20px;
+      margin: 15px 0;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    input, select, button {
+      width: 100%;
+      padding: 10px;
+      margin: 6px 0;
+    }
+
+    button {
+      background: #2563eb;
+      color: white;
+      border: none;
+      cursor: pointer;
+    }
+
+    button:hover { background: #1e40af; }
+
+    .output {
+      background: #f1f5f9;
+      padding: 10px;
+      border-radius: 6px;
+      white-space: pre-line;
+    }
+
+    .green { color: green; }
+    .orange { color: orange; }
+    .red { color: red; }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+
+<h1>🦐 Shrimp Digital Twin System</h1>
+
+<!-- CREATE -->
+<div class="card">
+  <h3>Create Batch</h3>
+  <button onclick="createBatch()">Create Batch</button>
+  <p id="batchId"></p>
+</div>
+
+<!-- ADD STAGE -->
+<div class="card">
+  <h3>Add Stage</h3>
+
+  <input id="bid" placeholder="Batch ID">
+
+  <!-- MODE -->
+  <select id="mode">
+    <option value="auto">Auto Stage Flow</option>
+    <option value="manual">Manual Select</option>
+  </select>
+
+  <!-- DROPDOWN -->
+  <select id="stage">
+    <option>Hatchery</option>
+    <option>Nursery</option>
+    <option>Grow-out</option>
+    <option>Processing</option>
+  </select>
+
+  <input id="temp" placeholder="Temperature (28-32)">
+  <input id="ph" placeholder="pH (7.5-8.5)">
+  <input id="sal" placeholder="Salinity (15-25)">
+  <input id="amm" placeholder="Ammonia (<1)">
+
+  <button onclick="addStage()">Add Stage</button>
+</div>
+
+<!-- TRACE -->
+<div class="card">
+  <h3>Trace Batch</h3>
+  <input id="traceId" placeholder="Batch ID">
+  <button onclick="traceBatch()">Trace</button>
+  <div id="output" class="output"></div>
+</div>
+
+<!-- STATUS -->
+<div class="card">
+  <h3>System Status</h3>
+  <input id="statusId" placeholder="Batch ID">
+  <button onclick="checkStatus()">Check Status</button>
+  <div id="status" class="output"></div>
+</div>
+
+<!-- SUGGESTIONS -->
+<div class="card">
+  <h3>Smart Suggestions</h3>
+  <input id="suggestId" placeholder="Batch ID">
+  <button onclick="getSuggestions()">Get Advice</button>
+  <div id="suggestions" class="output"></div>
+</div>
+
+</div>
+
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.12.1/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, addDoc, getDocs, getDoc }
+from "https://www.gstatic.com/firebasejs/12.12.1/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyAZODePiPLoiLGAL2ymkSbsa48_1mvE8lE",
+  authDomain: "lifecycle-integration.firebaseapp.com",
+  projectId: "lifecycle-integration",
+  storageBucket: "lifecycle-integration.firebasestorage.app",
+  messagingSenderId: "890833678264",
+  appId: "1:890833678264:web:115c8a32fdbfb5efaa694d"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// COUNTER
+let batchCounter = localStorage.getItem("batchCounter") 
+  ? parseInt(localStorage.getItem("batchCounter")) 
+  : 1;
+
+// STAGE FLOW
+const stageFlow = ["Hatchery", "Nursery", "Grow-out", "Processing"];
+
+// CREATE
+window.createBatch = async function () {
+  try {
+    let batchId = "Batch-" + batchCounter;
+
+    await setDoc(doc(db, "batches", batchId), {
+      created_at: new Date().toISOString()
+    });
+
+    document.getElementById("batchId").innerText = "Created: " + batchId;
+
+    // AUTO-FILL
+    document.getElementById("bid").value = batchId;
+    document.getElementById("traceId").value = batchId;
+    document.getElementById("statusId").value = batchId;
+    document.getElementById("suggestId").value = batchId;
+
+    batchCounter++;
+    localStorage.setItem("batchCounter", batchCounter);
+
+  } catch (e) {
+    console.error(e);
+    alert("Error creating batch");
+  }
+};
+
+// ADD STAGE
+window.addStage = async function () {
+
+  let batchId = document.getElementById("bid").value;
+  let mode = document.getElementById("mode").value;
+
+  if (!batchId) return alert("Enter Batch ID");
+
+  const batch = await getDoc(doc(db, "batches", batchId));
+  if (!batch.exists()) return alert("Batch not found");
+
+  const stagesSnap = await getDocs(collection(db, "batches", batchId, "stages"));
+  let count = stagesSnap.size;
+
+  let stageName;
+
+  if (mode === "auto") {
+    if (count >= 4) return alert("All stages completed");
+    stageName = stageFlow[count];
+  } else {
+    stageName = document.getElementById("stage").value;
+  }
+
+  await addDoc(collection(db, "batches", batchId, "stages"), {
+    stage: stageName,
+    temperature: Number(document.getElementById("temp").value),
+    ph: Number(document.getElementById("ph").value),
+    salinity: Number(document.getElementById("sal").value),
+    ammonia: Number(document.getElementById("amm").value),
+    timestamp: new Date().toLocaleString()
+  });
+
+  alert(stageName + " added");
+};
+
+// TRACE
+window.traceBatch = async function () {
+  let batchId = document.getElementById("traceId").value;
+
+  const docSnap = await getDoc(doc(db, "batches", batchId));
+  if (!docSnap.exists()) {
+    document.getElementById("output").innerText = "❌ Batch not found";
+    return;
+  }
+
+  const snapshot = await getDocs(collection(db, "batches", batchId, "stages"));
+
+  let text = "";
+  let i = 1;
+
+  snapshot.forEach(doc => {
+    let s = doc.data();
+
+    text += `Stage ${i} (${s.stage})
+Temp: ${s.temperature}°C | pH: ${s.ph}
+Salinity: ${s.salinity} | Ammonia: ${s.ammonia}
+Time: ${s.timestamp}
+
+`;
+    i++;
+  });
+
+  document.getElementById("output").innerText = text || "No data";
+};
+
+// STATUS
+window.checkStatus = async function () {
+  let batchId = document.getElementById("statusId").value;
+
+  const snapshot = await getDocs(collection(db, "batches", batchId, "stages"));
+
+  let critical = false, warning = false;
+
+  snapshot.forEach(doc => {
+    let s = doc.data();
+    if (s.ammonia > 1) critical = true;
+    if (s.ph < 6.5 || s.ph > 8.5) warning = true;
+  });
+
+  let el = document.getElementById("status");
+
+  if (critical)
+    el.innerHTML = "<span class='red'>🔴 Critical</span>";
+  else if (warning)
+    el.innerHTML = "<span class='orange'>🟡 Moderate Risk</span>";
+  else
+    el.innerHTML = "<span class='green'>🟢 Healthy</span>";
+};
+
+// SUGGESTIONS
+window.getSuggestions = async function () {
+  let batchId = document.getElementById("suggestId").value;
+
+  const snapshot = await getDocs(collection(db, "batches", batchId, "stages"));
+
+  let advice = [];
+
+  snapshot.forEach(doc => {
+    let s = doc.data();
+
+    if (s.ammonia > 1)
+      advice.push("Reduce feeding & improve aeration");
+
+    if (s.temperature > 32)
+      advice.push("Add fresh water");
+
+    if (s.salinity < 15)
+      advice.push("Add minerals");
+  });
+
+  document.getElementById("suggestions").innerText =
+    advice.length ? advice.join("\n") : "✅ All good";
+};
+
+// OPTIONAL: Hide dropdown in auto mode
+document.getElementById("mode").addEventListener("change", function () {
+  document.getElementById("stage").style.display =
+    this.value === "manual" ? "block" : "none";
+});
+
+</script>
+
+</body>
+</html>
